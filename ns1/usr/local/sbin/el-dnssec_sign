@@ -1,0 +1,17 @@
+#!/bin/bash
+if [ $# -eq 0 ]; then
+	echo "DNSSEC sign a zone"
+	echo
+	echo "usage: ${0} zone"
+	echo
+	exit 1
+fi
+zone="${1}"
+cd /var/named/
+rm ${zone}.signed.jnl
+dnssec-signzone -t -S -A -3 $(head -c 1000 /dev/urandom | sha1sum | cut -b 1-16) -e +7776000 -o "${zone}" "${zone}"
+echo "*********************************************"
+echo "* The following goes into your parent zone: *"
+echo "*********************************************"
+cat "dsset-${zone}."
+

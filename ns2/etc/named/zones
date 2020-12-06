@@ -1,0 +1,7 @@
+/*
+zone "example.com" IN {
+	type slave;
+	masters {none; }; # IP of ns1
+	file "example.com.signed";
+};
+*/

@@ -1,0 +1,38 @@
+#!/bin/bash
+if [ $# -ne 1 ]; then
+	echo "Configure MX server"
+	echo
+	echo "usage: ${0} <mx.example.com>"
+	echo
+	exit 1
+fi
+
+domain="${1}"
+
+fullchain="/etc/letsencrypt/live/${domain}/fullchain.pem"
+privkey="/etc/letsencrypt/live/${domain}/privkey.pem"
+
+if [ ! -f "${fullchain}" ] || [ ! -f "${privkey}"]; then
+	echo "WARNING: No Let's Encrypt certificates found! Generating self-signed certs."
+	mkdir -p /etc/pki/selfsigned
+	fullchain="/etc/pki/selfsigned/${domain}-fullchain.pem"
+	privkey="/etc/pki/selfsigned/${domain}-privkey.pem"
+	openssl req -newkey rsa:4096 -nodes -sha512 -x509 -days 3650 -nodes -out ${fullchain} -keyout ${privkey} -subj "/CN=${domain}/C=XX/L= /O= "
+fi
+
+sed 's#^smtpd_tls_cert_file = .*$#smtpd_tls_cert_file = '"${fullchain}"'#' -i /etc/postfix/main.cf
+sed 's#^smtpd_tls_key_file = .*$#smtpd_tls_key_file = '"${privkey}"'#' -i /etc/postfix/main.cf
+sed 's#^myhostname = .*$#myhostname = '"${domain}"'#' -i /etc/postfix/main.cf
+
+sed 's#^	ssl_cert=<.*$#	ssl_cert=<'"${fullchain}"'#' -i /etc/dovecot/dovecot.conf
+sed 's#^	ssl_key=<.*$#	ssl_key=<'"${privkey}"'#' -i /etc/dovecot/dovecot.conf
+sed 's#^local_name .* {$#local_name '"${domain}"' {#' -i /etc/dovecot/dovecot.conf
+
+systemctl restart dovecot
+systemctl enable dovecot
+#systemctl status dovecot
+systemctl restart postfix
+systemctl enable postfix
+#systemctl status postfix
+
+

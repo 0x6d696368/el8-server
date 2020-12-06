@@ -1,0 +1,28 @@
+#!/bin/bash
+yum -y install epel-release openssl
+yum -y install httpd python3-certbot-apache mod_ssl mod_security
+rm -rf /etc/httpd/conf/*
+rm -rf /etc/httpd/conf.d/*
+# COPY CONFIGURATION FILES
+
+# make el- scripts executable
+chmod u+x /usr/local/sbin/el-*
+
+mkdir -p /etc/httpd/ssl/
+openssl req -x509 -nodes -days 365 -newkey rsa:4096 -keyout /etc/httpd/ssl/snakeoil.key -out /etc/httpd/ssl/snakeoil.crt -subj "/C=XX/L= /O= "
+mkdir -p /root/.config/letsencrypt/
+echo "rsa-key-size = 4096" > /root/.config/letsencrypt/cli.ini
+firewall-cmd --permanent --add-service=http
+firewall-cmd --permanent --add-service=https
+firewall-cmd --reload
+firewall-cmd --list-all # list rules [optional]
+systemctl --no-pager start httpd
+systemctl --no-pager enable httpd
+systemctl --no-pager status httpd
+##
+## LETS ENCRYPT STUFF
+##
+mkdir -p /root/.config/letsencrypt/
+echo "rsa-key-size = 4096" > /root/.config/letsencrypt/cli.ini
+echo "$(expr $RANDOM \% 60) 0,12 * * * root perl -e 'sleep int(rand(3600))'; certbot renew --post-hook 'systemctl reload httpd'" > /etc/cron.d/certbot
+

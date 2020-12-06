@@ -1,0 +1,12 @@
+#!/bin/bash
+cd /etc/letsencrypt/live
+ls | grep -v README | while read domain; do
+rm -f ${domain}/cert.pem
+ln -s ../$(ls ../archive/${domain}/cert*.pem | tail -n1) ${domain}/cert.pem
+rm -f ${domain}/chain.pem
+ln -s ../$(ls ../archive/${domain}/chain*.pem | tail -n1) ${domain}/chain.pem
+rm -f ${domain}/fullchain.pem
+ln -s ../$(ls ../archive/${domain}/fullchain*.pem | tail -n1) ${domain}/fullchain.pem
+rm -f ${domain}/privkey.pem
+ln -s ../$(ls ../archive/${domain}/privkey*.pem | tail -n1) ${domain}/privkey.pem
+done

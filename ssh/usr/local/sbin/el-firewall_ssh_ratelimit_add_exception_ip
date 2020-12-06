@@ -1,0 +1,22 @@
+#!/bin/bash
+if [ $# -gt 1 ]; then
+	echo "Whitelist the SSH IP"
+	echo
+	echo "usage: ${0} [IP]"
+	echo
+	echo "If IP is not given IP from \$SSH_CLIENT will be used."
+	echo
+	exit 1
+fi
+if [ $# -eq 0 ]; then
+	IP="$(echo $SSH_CLIENT | cut -d' ' -f1)"
+	echo "No IP given using IP from \$SSH_CLIENT (${IP})"
+	SSH_PORT="$(echo $SSH_CLIENT | cut -d' ' -f3)"
+else
+	IP="${1}"
+	SSH_PORT="$(grep -E '^Port [0-9]+' /etc/ssh/sshd_config | grep -oE '[0-9]+' | head -n1)"
+fi
+firewall-cmd --permanent --direct --add-rule ipv4 filter INPUT_direct 0 -p tcp -s "${IP}" --dport "${SSH_PORT}" -m state --state NEW -j ACCEPT
+firewall-cmd --reload
+systemctl restart fail2ban
+

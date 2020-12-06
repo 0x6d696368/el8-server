@@ -1,0 +1,6 @@
+/*
+zone "example.com" IN {
+	type master;
+	file "example.com.signed";
+};
+*/

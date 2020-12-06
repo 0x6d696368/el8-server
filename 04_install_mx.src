@@ -1,0 +1,58 @@
+#!/bin/bash
+yum -y install epel-release openssl
+yum -y install postfix dovecot postfix-pcre opendkim opendmarc postgrey
+rm -rf /etc/dovecot/conf.d
+
+# SPF ... this is a bit ugly
+yum -y install python34 python34-pip
+pip3.4 install -U pypolicyd-spf==2.0.2 pyspf==2.0.11 py3dns==3.2.0 pip
+
+rm -rf /etc/postfix/*
+
+# COPY CONFIGURATION FILES
+
+# make el7- scripts executable
+chmod u+x /usr/local/sbin/el7-*
+
+alternatives --set mta /usr/sbin/sendmail.postfix
+groupadd -g 5000 vmail
+useradd -m -d /var/vmail -s /bin/false -u 5000 -g vmail vmail
+postmap /etc/postfix/vmaps
+postmap /etc/postfix/smtp_header_checks
+
+openssl dhparam -out /etc/postfix/dhparams.pem 2048
+openssl dhparam -out /etc/dovecot/dhparams.pem 2048
+
+postconf -e "alias_maps = hash:/etc/aliases" # fix NIS warning as default config is "alias_maps = hash:/etc/aliases, nis:mail.aliases"
+
+firewall-cmd --permanent --add-service=smtp
+firewall-cmd --permanent --add-port=465/tcp
+firewall-cmd --permanent --add-service=pop3s
+
+# rate limit tcp connections to pop3s on 995/tcp to 8 / minute per IP
+firewall-cmd --permanent --direct --add-rule ipv4 filter INPUT_direct 10 -p tcp --dport 995 -m state --state NEW -m recent --set --name POP3S_RATELIMIT
+firewall-cmd --permanent --direct --add-rule ipv4 filter INPUT_direct 11 -p tcp --dport 995 -m state --state NEW -m recent --update --seconds 60 --hitcount 9 -j REJECT --reject-with tcp-reset --name POP3S_RATELIMIT
+firewall-cmd --permanent --direct --add-rule ipv6 filter INPUT_direct 10 -p tcp --dport 995 -m state --state NEW -m recent --set --name POP3S_RATELIMIT
+firewall-cmd --permanent --direct --add-rule ipv6 filter INPUT_direct 11 -p tcp --dport 995 -m state --state NEW -m recent --update --seconds 60 --hitcount 9 -j REJECT --reject-with tcp-reset --name POP3S_RATELIMIT
+# rate limit tcp connections to smtps on 465/tcp to 3 / minute per IP
+firewall-cmd --permanent --direct --add-rule ipv4 filter INPUT_direct 10 -p tcp --dport 465 -m state --state NEW -m recent --set --name SMTPS_RATELIMIT
+firewall-cmd --permanent --direct --add-rule ipv4 filter INPUT_direct 11 -p tcp --dport 465 -m state --state NEW -m recent --update --seconds 60 --hitcount 4 -j REJECT --reject-with tcp-reset --name SMTPS_RATELIMIT
+firewall-cmd --permanent --direct --add-rule ipv6 filter INPUT_direct 10 -p tcp --dport 465 -m state --state NEW -m recent --set --name SMTPS_RATELIMIT
+firewall-cmd --permanent --direct --add-rule ipv6 filter INPUT_direct 11 -p tcp --dport 465 -m state --state NEW -m recent --update --seconds 60 --hitcount 4 -j REJECT --reject-with tcp-reset --name SMTPS_RATELIMIT
+
+firewall-cmd --reload
+firewall-cmd --list-all # list rules [optional]
+firewall-cmd --direct --get-all-rules # list rate limiting rules [optional]
+systemctl start opendkim
+systemctl enable opendkim
+systemctl status opendkim
+systemctl start opendmarc
+systemctl enable opendmarc
+systemctl status opendmarc
+systemctl start postgrey
+systemctl enable postgrey
+systemctl status postgrey
+
+# make let's encrypt auto renew work
+sed "s/certbot renew --post-hook 'systemctl reload httpd'/certbot renew --post-hook 'systemctl reload httpd postfix dovecot'/" -i /etc/cron.d/certbot
+

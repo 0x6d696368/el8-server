@@ -1,0 +1,11 @@
+/var/log/dovecot
+/var/log/dovecot.info
+{
+  missingok
+  notifempty
+  sharedscripts
+  delaycompress
+  postrotate
+    doveadm log reopen
+  endscript
+}

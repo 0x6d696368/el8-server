@@ -1,0 +1,30 @@
+#!/bin/bash
+if [ $# -ne 1  ]; then
+	echo "Change SSH port"
+	echo
+	echo "usage: ${0} <SSH_PORT>"
+	echo
+	echo "Changes SSH port to SSH_PORT."
+	echo
+	exit 1
+fi
+NEW_SSH_PORT="${1}"
+OLD_SSH_PORT="$(grep -E '^Port [0-9]+' /etc/ssh/sshd_config | grep -oE '[0-9]+' | head -n1)"
+
+sed 's/Port [0-9]\+/Port '${NEW_SSH_PORT}'/' -i /etc/ssh/sshd_config
+
+firewall-cmd --permanent --add-port=${NEW_SSH_PORT}/tcp --zone=public
+firewall-cmd --reload
+/usr/local/sbin/el-firewall_ssh_add_ratelimit ${NEW_SSH_PORT}
+semanage port -a -t ssh_port_t -p tcp ${NEW_SSH_PORT}
+systemctl --no-pager reload sshd
+systemctl --no-pager status sshd
+
+if [ "${OLD_SSH_PORT}" -ne "22" ]; then
+	firewall-cmd --permanent --delete-port=${OLD_SSH_PORT}/tcp --zone=public
+	semanage port -d -t ssh_port_t -p tcp ${OLD_SSH_PORT}
+fi
+/usr/local/sbin/el-firewall_ssh_rem_ratelimit ${OLD_SSH_PORT}
+
+echo "WARNING!!! BEFORE DISCONNECTING YOUR CURRENT SSH SESSION TRY THE NEW PORT IN PARALLEL!!!"
+

@@ -1,0 +1,21 @@
+#!/bin/sh
+
+if [ ! $# = 1 ];  then
+	echo "Add DKIM key for domain"
+	echo "Usage: ${0} <domain>"
+	exit 1
+fi
+domain="${1}"
+selector=$(date +%Y%m%dT%H%M%S)
+mkdir -p /etc/opendkim/keys/${domain}
+opendkim-genkey -b 2048 -d ${domain} -s ${selector} -a -D /etc/opendkim/keys/${domain}/
+chown opendkim:opendkim -R /etc/opendkim/keys
+echo
+echo "Put the following DKIM key into your zone file:"
+cat /etc/opendkim/keys/${domain}/${selector}.txt
+echo
+echo "/etc/opendkim/KeyTable"
+echo "${selector}._domainkey.${domain} ${domain}:${selector}:/etc/opendkim/keys/${domain}/${selector}.private"
+echo "/etc/opendkim/SigningTable"
+echo "*@${domain} ${selector}._domainkey.${domain}"
+echo

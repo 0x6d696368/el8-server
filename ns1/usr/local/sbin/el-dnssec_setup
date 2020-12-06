@@ -1,0 +1,17 @@
+#!/bin/bash
+if [ $# -eq 0 ]; then
+	echo "Setup DNSSEC for a zone"
+	echo
+	echo "usage: ${0} zone"
+	echo
+	exit 1
+fi
+zone="${1}"
+cd /var/named/
+dnssec-keygen -r /dev/urandom -a NSEC3RSASHA1 -b 2048 -n ZONE ${zone}
+dnssec-keygen -r /dev/urandom -f KSK -a NSEC3RSASHA1 -b 4096 -n ZONE ${zone}
+echo
+echo "**************************************************************"
+echo "* Now use /usr/local/sbin/el7-dnssec-sign to sign your zone! *"
+echo "**************************************************************"
+

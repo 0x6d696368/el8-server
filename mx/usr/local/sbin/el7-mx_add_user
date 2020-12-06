@@ -1,0 +1,62 @@
+#!/bin/sh
+
+if [ ! $# = 1 ];  then
+	echo "Usage: ${0} username@domain"
+	exit 1
+fi
+username=$(echo "${1}" | cut -f1 -d "@")
+domain=$(echo "${1}" | cut -s -f2 -d "@")
+if [ -z "$domain" ] || [ -z "$username" ]; then
+	echo "No domain and/or username given."
+	echo "Usage: ${0} username@domain"
+	exit 2
+fi
+
+echo "Adding domain to /etc/postfix/vhosts"
+echo "${domain}" >> /etc/postfix/vhosts
+sort -u /etc/postfix/vhosts -o /etc/postfix/vhosts # remove dups
+
+echo "Adding user $username@$domain to /etc/dovecot/users"
+echo "$username@$domain::5000:5000::/home/vmail/$domain/$username/:/bin/false::" >> /etc/dovecot/users
+sort -u /etc/dovecot/users -o /etc/dovecot/users # remove dups
+
+echo "Creating user directory /home/vmail/$domain/$username/"
+mkdir -p /home/vmail/$domain/$username/
+chown -R 5000:5000 /home/vmail
+chmod 700 /home/vmail/$domain
+
+echo "Adding user to /etc/postfix/vmaps"
+echo "${1}  $domain/$username/" >> /etc/postfix/vmaps
+sort -u /etc/postfix/vmaps -o /etc/postfix/vmaps # remove dups
+new_vmaps=$(grep -v "^@" /etc/postfix/vmaps; grep "^@" /etc/postfix/vmaps) # sort
+echo "${new_vmaps}" > /etc/postfix/vmaps
+postmap /etc/postfix/vmaps
+postfix reload
+
+if [ -n "$(cat /etc/dovecot/passwd | grep "$username@$domain:")" ]; then
+	echo "A password already exists for $username@$domain"
+	read -n1 -p "Update password? [Y/N]? " UPDATE
+	case $UPDATE in
+		y | Y)
+			echo "Deleting old password from /etc/dovecot/passwd"
+			tmp=$(mktemp)
+			grep -v "$username@$domain:" /etc/dovecot/passwd > $tmp
+			mv $tmp /etc/dovecot/passwd
+			;;
+		*)
+			echo "Keeping current password for $username@$domain in /etc/dovecot/passwd"
+			systemctl reload dovecot
+			exit 0
+			;;
+	esac
+fi	
+echo "Create a password for the new email user"
+passwd=`doveadm pw -u $username`
+echo "Adding password for $username@$domain to /etc/dovecot/passwd"
+touch /etc/dovecot/passwd
+echo  "$username@$domain:$passwd" >> /etc/dovecot/passwd
+chmod 640 /etc/dovecot/passwd
+chown dovecot:dovecot /etc/dovecot/passwd
+
+systemctl reload dovecot
+

@@ -1,0 +1,23 @@
+#!/bin/bash
+if [ $# -ne 2 ]; then
+	echo "Configure BIND ns IPs"
+	echo
+	echo "usage: ${0} <IP of ns1> <IP of ns2>"
+	echo
+	exit 1
+fi
+ns1="${1}"
+ns2="${2}"
+sed '/listen-on port/ s/^.*$/\tlisten-on port 53 { any; };/' -i /etc/named.conf
+sed '/listen-on-v6 port/ s/^.*$/\tlisten-on-v6 port 53 { any; };/' -i /etc/named.conf
+sed '/allow-query / s/^.*$/\tallow-query       { any; };/' -i /etc/named.conf
+sed '/allow-update/ s/^.*$/\tallow-update      { '"${ns1}"'; };/' -i /etc/named.conf
+sed '/allow-notify/ s/^.*$/\tallow-notify      { '"${ns1}"'; };/' -i /etc/named.conf
+sed '/allow-transfer/ s/^.*$/\tallow-transfer    { '"${ns2}"'; };/' -i /etc/named.conf
+sed '/masters/ s/^.*$/\tmasters { '"${ns1}"'; };/' -i /etc/named/zones
+
+firewall-cmd --permanent --add-service=dns
+firewall-cmd --reload
+firewall-cmd --list-all # list rules [optional]
+systemctl reload named
+

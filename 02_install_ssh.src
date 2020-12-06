@@ -1,0 +1,31 @@
+#!/bin/bash
+
+## ssh
+yum install -y openssh
+rm -r /etc/ssh/*
+ssh-keygen -t ed25519 -N "" -f /etc/ssh/ssh_host_ed25519_key # re-generate public key
+yum -y install policycoreutils-python-utils
+
+# COPY CONFIGURATION FILES
+
+# make el- scripts executable
+chmod u+x /usr/local/sbin/el-*
+
+SSH_PORT="$(grep -E '^Port [0-9]+' /etc/ssh/sshd_config | grep -oE '[0-9]+' | head -n1)"
+
+firewall-cmd --permanent --add-port=${SSH_PORT}/tcp --zone=public
+semanage port -a -t ssh_port_t -p tcp ${SSH_PORT}
+
+# rate limit tcp connections to SSH on ${SSH_PORT}/tcp to 3 per minute
+firewall-cmd --permanent --direct --add-rule ipv4 filter INPUT_direct 10 -p tcp --dport ${SSH_PORT} -m state --state NEW -m recent --set --name SSH_RATELIMIT
+firewall-cmd --permanent --direct --add-rule ipv4 filter INPUT_direct 11 -p tcp --dport ${SSH_PORT} -m state --state NEW -m recent --update --seconds 60 --hitcount 4 -j REJECT --reject-with tcp-reset --name SSH_RATELIMIT
+firewall-cmd --permanent --direct --add-rule ipv6 filter INPUT_direct 10 -p tcp --dport ${SSH_PORT} -m state --state NEW -m recent --set --name SSH_RATELIMIT
+firewall-cmd --permanent --direct --add-rule ipv6 filter INPUT_direct 11 -p tcp --dport ${SSH_PORT} -m state --state NEW -m recent --update --seconds 60 --hitcount 4 -j REJECT --reject-with tcp-reset --name SSH_RATELIMIT
+systemctl --no-pager start sshd
+systemctl --no-pager enable sshd
+systemctl --no-pager reload sshd
+systemctl --no-pager status sshd # check status [optional]
+firewall-cmd --reload
+firewall-cmd --list-all # list rules [optional]
+firewall-cmd --direct --get-all-rules # list rate limiting rules [optional]
+

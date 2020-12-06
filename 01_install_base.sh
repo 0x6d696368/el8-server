@@ -1,0 +1,91 @@
+#!/bin/bash
+yum -y install drpm coreutils net-tools policycoreutils
+
+# update
+yum -y update
+
+# ensure we have regular kernel and not custom stuff
+yum -y install kernel
+grub2-mkconfig --output=/boot/grub2/grub.cfg
+
+# remove provider monitoring, setup and "backdoor" stuff
+yum -y remove cloud-init vzdummy-systemd-el8.noarch beamium noderig
+# ovh
+sed '/^[^#]/ s_\(^.*/usr/local/rtm/bin/rtm.*$\)_#\1_g' -i /etc/crontab
+killall -9 rtm
+
+# time stuff
+yum -y install chrony
+systemctl --no-pager start chronyd 
+systemctl --no-pager enable chronyd 
+systemctl --no-pager status chronyd # chech status [optional] 
+timedatectl set-timezone UTC
+# FIX for https://bugzilla.redhat.com/show_bug.cgi?id=1088021
+yum -y install rsyslog
+systemctl --no-pager stop rsyslog
+rm -f /var/lib/rsyslog/imjournal.state
+systemctl --no-pager start rsyslog
+systemctl --no-pager enable rsyslog
+
+# auto updates
+yum install -y dnf-automatic cronie
+sed 's/apply_updates = no/apply_updates = yes/' -i /etc/dnf/automatic.conf
+systemctl --no-pager start crond
+systemctl --no-pager enable crond
+systemctl --no-pager status crond # check status [optional]
+systemctl --no-pager start dnf-automatic.timer
+systemctl --no-pager enable dnf-automatic.timer
+systemctl --no-pager status dnf-automatic.timer # check status [optional]
+#journalctl -xn # in case something went wrong
+
+# automatic reboots if libraries or kernel updated
+yum install -y yum-utils # for needs-restarting
+# TODO: try `dnf needs-restarting` so we don't need yum-utils
+
+## firewall
+yum -y install firewalld
+systemctl --no-pager restart dbus # FIX: ERROR: Exception DBusException: org.freedesktop.DBus.Error.AccessDenied: Connection ":1.44" is not allowed to own the service "org.fedoraproject.FirewallD1" due to security policies in the configuration file
+systemctl --no-pager start firewalld
+systemctl --no-pager enable firewalld
+systemctl --no-pager status firewalld
+firewall-cmd --permanent --zone=public --change-interface="$(ip route | grep default | grep -Po '(?<=dev )(\S+)')"
+
+# COPY CONFIGURATION FILES
+mkdir -p /etc
+mkdir -p /etc/cron.hourly
+mkdir -p /usr
+mkdir -p /usr/lib
+mkdir -p /usr/lib/systemd
+mkdir -p /usr/lib/systemd/system
+cat > /etc/cron.hourly/9needs-restarting.cron << PASTECONFIGURATIONFILE
+#!/bin/bash
+needs-restarting -r > /dev/null || shutdown -r
+PASTECONFIGURATIONFILE
+cat > /usr/lib/systemd/system/dnf-automatic.timer << PASTECONFIGURATIONFILE
+[Unit]
+Description=dnf-automatic timer
+# See comment in dnf-makecache.service
+ConditionPathExists=!/run/ostree-booted
+Wants=network-online.target
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+RandomizedDelaySec=60m
+Persistent=true
+
+[Install]
+WantedBy=multi-user.target
+PASTECONFIGURATIONFILE
+# COPY CONFIGURATION FILES
+
+# make el- scripts executable
+chmod u+x /usr/local/sbin/el-*
+chmod +x /etc/cron.hourly/9needs-restarting.cron
+
+firewall-cmd --permanent --remove-service cockpit
+firewall-cmd --reload
+firewall-cmd --list-all # list rules [optional]
+firewall-cmd --direct --get-all-rules # list rate limiting rules [optional]
+
+hostnamectl set-hostname localhost.localdomain
+

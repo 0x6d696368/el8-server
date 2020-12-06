@@ -1,0 +1,10 @@
+#!/bin/bash
+if [ $# -eq 0 ]; then
+	echo "Delete a Let's Encrypt certificate for a domain"
+	echo
+	echo "usage: ${0} <domain>"
+	echo
+	exit 1
+fi
+domain=${1}
+certbot delete --cert-name "${domain}"

@@ -1,0 +1,16 @@
+#!/bin/bash
+# yum -y install epel-release
+yum -y install bind bind-utils #haveged
+# yum -y install rng-tools
+# cat /dev/random | rngtest -c 1000
+# systemctl enable haveged
+# COPY CONFIGURATION FILES
+# make el- scripts executable
+chmod u+x /usr/local/sbin/el-*
+chown named:named -R /var/named
+mkdir -p /var/log/named
+chown named:named -R /var/log/named
+systemctl --no-pager start named
+systemctl --no-pager enable named
+systemctl --no-pager status named # check status [optional]
+

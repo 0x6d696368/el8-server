@@ -1,0 +1,34 @@
+# change port, obscurity is a valid security layer!
+Port 226
+
+# VERBOSE login to log user's key fingerprints on login.
+LogLevel VERBOSE
+SyslogFacility AUTHPRIV
+
+Protocol 2
+
+HostKey /etc/ssh/ssh_host_ed25519_key
+AuthorizedKeysFile %h/.ssh/authorized_keys
+#RevokedKeys /etc/ssh/revokeyd_keys # TODO: check if this works
+
+PermitRootLogin prohibit-password # NOTE: change to 'no' for multiuser system
+UsePAM yes
+
+AuthenticationMethods publickey #,keyboard-interactive # TODO: do 2FA
+PubkeyAuthentication yes
+PermitEmptyPasswords no
+HostbasedAuthentication no
+PasswordAuthentication no
+ChallengeResponseAuthentication no
+KerberosAuthentication no
+GSSAPIAuthentication no
+#ExposeAuthenticationMethods never
+
+X11Forwarding no
+IgnoreRhosts yes
+
+StrictModes yes
+UsePrivilegeSeparation sandbox
+
+MaxAuthTries 1
+
