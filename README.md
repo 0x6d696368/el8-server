@@ -1,3 +1,5 @@
+**DEPRECATED! BECAUSE RED HAT/CENTOS DECIDED TO KILL CENTOS 8 I'M MOVING TO UBUNTU 20.04 LTS: <https://github.com/0x6d696368/u2004-server>**
+
 # CENTOS 8 SERVER SCRIPTS
 
 Bootstrap a base CentOS 8 server system starting from a Minimal Install.
